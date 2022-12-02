@@ -243,6 +243,7 @@ class LabelBase(Group):
         # pylint: disable=too-many-arguments, too-many-locals
 
         super().__init__(x=x, y=y, scale=1)
+        self._scale = scale
 
         self._font = font
         self._text = text
@@ -274,7 +275,7 @@ class LabelBase(Group):
         # local group will hold background and text
         # the self group scale should always remain at 1, the self._local_group will
         # be used to set the scale of the label
-        self._local_group = Group(scale=scale)
+        self._local_group = Group(scale=1)
         self.append(self._local_group)
 
         self._baseline = -1.0
@@ -376,16 +377,16 @@ class LabelBase(Group):
         if (self._anchor_point is not None) and (self._anchored_position is not None):
             self.x = int(
                 new_position[0]
-                - (self._bounding_box[0] * self.scale)
-                - round(self._anchor_point[0] * (self._bounding_box[2] * self.scale))
+                - (self._bounding_box[0] * self._scale)
+                - round(self._anchor_point[0] * (self._bounding_box[2] * self._scale))
             )
             if self._anchor_point[1] == self._baseline:
-                self.y = int(new_position[1] - (self._y_offset * self.scale))
+                self.y = int(new_position[1] - (self._y_offset * self._scale))
             else:
                 self.y = int(
                     new_position[1]
-                    - (self._bounding_box[1] * self.scale)
-                    - round(self._anchor_point[1] * self._bounding_box[3] * self.scale)
+                    - (self._bounding_box[1] * self._scale)
+                    - round(self._anchor_point[1] * self._bounding_box[3] * self._scale)
                 )
 
     @property
@@ -408,7 +409,7 @@ class LabelBase(Group):
 
     @text.setter  # Cannot set color or background color with text setter, use separate setter
     def text(self, new_text: str) -> None:
-        self._set_text(new_text, self.scale)
+        self._set_text(new_text, self._scale)
 
     @property
     def bounding_box(self) -> Tuple[int, int]:

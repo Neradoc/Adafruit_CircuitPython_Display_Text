@@ -28,6 +28,7 @@ __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_Display_Text.git"
 
 import displayio
 from adafruit_display_text import LabelBase
+from math import ceil, floor
 
 try:
     from typing import Optional, Tuple
@@ -35,6 +36,10 @@ try:
 except ImportError:
     pass
 
+try:
+    import bitmaptools
+except ImportError:
+    bitmaptools = None
 
 # pylint: disable=too-many-instance-attributes
 class Label(LabelBase):
@@ -103,11 +108,12 @@ class Label(LabelBase):
         self._text = self._replace_tabs(self._text)
 
         # call the text updater with all the arguments.
+        print("_reset_text scale", self._scale)
         self._reset_text(
             font=font,
             text=self._text,
             line_spacing=self._line_spacing,
-            scale=self.scale,
+            scale=self._scale,
         )
 
     def _reset_text(
@@ -182,8 +188,8 @@ class Label(LabelBase):
                 y_offset = loose_y_offset
 
             # Calculate the background size including padding
-            box_x = box_x + self._padding_left + self._padding_right
-            box_y = box_y + self._padding_top + self._padding_bottom
+            box_x = floor(box_x * scale) + self._padding_left + self._padding_right
+            box_y = floor(box_y * scale) + self._padding_top + self._padding_bottom
 
             # Create the Bitmap unless it can be reused
             new_bitmap = None
@@ -204,6 +210,7 @@ class Label(LabelBase):
                 self._font,
                 self._padding_left - x_offset,
                 self._padding_top + y_offset,
+                scale = scale,
             )
 
             if self._base_alignment:
@@ -259,7 +266,7 @@ class Label(LabelBase):
         if (
             scale is not None
         ):  # Scale will be defined in local_group (Note: self should have scale=1)
-            self.scale = scale  # call the setter
+            self._scale = scale  # call the setter
 
         # set the anchored_position with setter after bitmap is created, sets the
         # x,y positions of the label
@@ -360,6 +367,7 @@ class Label(LabelBase):
         skip_index: int = 0,  # set to None to write all pixels, other wise skip this palette index
         # when copying glyph bitmaps (this is important for slanted text
         # where rectangular glyph boxes overlap)
+        scale: int = 1,
     ) -> Tuple[int, int, int, int]:
         # pylint: disable=too-many-arguments, too-many-locals
 
@@ -379,8 +387,10 @@ class Label(LabelBase):
 
             if char == "\n":  # newline
                 xposition = x_start  # reset to left column
-                yposition = yposition + self._line_spacing_ypixels(
-                    font, line_spacing
+                yposition = yposition + floor(
+                    scale * self._line_spacing_ypixels(
+                        font, line_spacing
+                    )
                 )  # Add a newline
 
             else:
@@ -442,9 +452,10 @@ class Label(LabelBase):
                         x_2=glyph_offset_x + my_glyph.width,
                         y_2=my_glyph.height,
                         skip_index=skip_index,  # do not copy over any 0 background pixels
+                        scale=scale,
                     )
 
-                    xposition = xposition + my_glyph.shift_x
+                    xposition = xposition + floor(scale * my_glyph.shift_x)
 
         # bounding_box
         return left, top, right - left, bottom - top
@@ -461,10 +472,26 @@ class Label(LabelBase):
         y_2: int = None,  # source y end
         skip_index: int = None,  # palette index that will not be copied
         # (for example: the background color of a glyph)
+        scale: int = 1,
     ) -> None:
         # pylint: disable=no-self-use, too-many-arguments
 
-        if hasattr(bitmap, "blit"):  # if bitmap has a built-in blit function, call it
+        if bitmaptools and isinstance(bitmap, displayio.Bitmap):
+            print("Rotozoom", scale)
+            bitmaptools.rotozoom(
+                dest_bitmap=bitmap,
+                source_bitmap=source_bitmap,
+                ox=x,
+                oy=y,
+                px=x_1,
+                py=y_1,
+                source_clip0=(x_1, y_1),
+                source_clip1=(x_2, y_2),
+                scale=scale,
+                skip_index=skip_index,
+            )
+
+        elif hasattr(bitmap, "blit"):  # if bitmap has a built-in blit function, call it
             # this function should perform its own input checks
             bitmap.blit(
                 x,
@@ -524,19 +551,19 @@ class Label(LabelBase):
 
     def _set_line_spacing(self, new_line_spacing: float) -> None:
         if self._save_text:
-            self._reset_text(line_spacing=new_line_spacing, scale=self.scale)
+            self._reset_text(line_spacing=new_line_spacing, scale=self._scale)
         else:
             raise RuntimeError("line_spacing is immutable when save_text is False")
 
     def _set_font(self, new_font: FontProtocol) -> None:
         self._font = new_font
         if self._save_text:
-            self._reset_text(font=new_font, scale=self.scale)
+            self._reset_text(font=new_font, scale=self._scale)
         else:
             raise RuntimeError("font is immutable when save_text is False")
 
     def _set_text(self, new_text: str, scale: int) -> None:
-        self._reset_text(text=self._replace_tabs(new_text), scale=self.scale)
+        self._reset_text(text=self._replace_tabs(new_text), scale=self._scale)
 
     def _set_background_color(self, new_color: Optional[int]):
         self._background_color = new_color
